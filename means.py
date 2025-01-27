@@ -20,6 +20,7 @@ def pairwise_distances(data):
     D = D.reshape(1, m) # Resahpe for python - D was (m,) which is a 1D array with m elements, we need it to be in form of 2D array (matrix) to calculate elementwise.
     return (D.T + D - 2 * B)  # Calculate (|Xi|^2 - 2 * <xi,xj> +|Xj|^2 ) = (Xi - Xj)^2 for all combinations of vectors and return in (m,m) matrix if squared distnaces.
 
+
 def compute_silhouette(labels, distances):
     """
     Optimized computation of the Silhouette Coefficient.
@@ -61,34 +62,49 @@ class KMeans:
         self.max_iters = max_iters # max iterrations for moving the centroids 
         self.plot_steps = plot_steps # DEBUG - plot each centroid change
 
-        # list of sample indices for each cluster
+        # clusters is list of lists of indexes, looks like this for 3 clusters: [[4,3,2], [1,5], [6,7,8,9]]
+        #   Inner list ondex - the cluster it represents: [4,3,2] is cluster 0
+        #   Inner lists - indexes of vectors in that clusters [4,3,2] - cluster 0 contains vectors from rows 2,3,4.
         self.clusters = [[] for _ in range(self.K)] # initiate list of k empty lists. each empty list contians the row indices which represent the vectors in that cluster.
 
-        # the centers (mean vector) for each cluster
+        # List of points
         self.centroids = []
-
-    # Main process - devide into clusters and returns the labels based on the rows in the given data
+    
     def predict(self, data):
+        '''
+        Description:
+            Assiging cluster for each point in the given data.
+            The assignment is provided by returning a labels array - label i corresponding to vector i in data.
+
+        Parameters:
+            data - matrix where each row represents a vector (point in Euclidean space)
+            
+        Return value:
+            labels - list of integers represanting cluster numbers
+            
+        Example:
+            Data: [[1,2,3], [4,5,6], [7,8,9]]
+            K : 2
+            Return labels:  [0,0,1] (v1,v2 assigend to cluster 0 and v3 assigned to cluster 1)
+        '''
+        
         self.data = data
         self.n_samples, self.n_features = data.shape # Save number of  (m) and number of features for each vector (n)
-
-        # initialize - instead of random init with chosen centroids
-        #random_sample_idxs = np.random.choice(self.n_samples, self.K, replace=False)
-        #self.centroids = [self.data[idx] for idx in random_sample_idxs]
-        
+    
+        # Init centroids with Kmeans++ algorithm        
         self.centroids = calculate_initial_centroids(data, self.K)
    
-
-        # optimize clusters
+        # Update centroids based on kmeans algorithm
         for _ in range(self.max_iters):
-            # assign samples to closest centroids (create clusters)
+            
+            # Cluster the labels based on given centorids (list of lists of point indexes returned here)
             self.clusters = self._create_clusters(self.centroids)
 
             if self.plot_steps: # DEBUG: plot 
                 self.plot()
 
             # calculate new centroids from the clusters
-            centroids_old = self.centroids
+            centroids_old = self.centroids # Save old centroid locations
             self.centroids = self._get_centroids(self.clusters) # calculate the new value for centroids
 
             if self._is_converged(centroids_old, self.centroids): # check if centroids moved
@@ -99,10 +115,23 @@ class KMeans:
 
         # classify samples as the index of their clusters
         return self._get_cluster_labels(self.clusters)
-
-    
+ 
     # Returns np.array of size m (number of vectors), each vector in its location according to the original data, and the data is the index of the cluster
     def _get_cluster_labels(self, clusters):
+        '''
+        Description:
+            Assigns a cluster index to each point in data.
+        
+        Parameters:
+            clusters - list of lists of indexes (indexes represents the vectors in data)
+            
+        Return value:
+            centroids - list of points
+            
+        Example:
+            clusters: [[0,1,2], [3,4]]
+            centroids: [0,0,0,1,1]               
+        '''
         # each sample will get the label of the cluster it was assigned to
         labels = np.empty(self.n_samples) # Return a new array of given shape and type, without initializing entries.
         for cluster_idx, cluster in enumerate(clusters):
@@ -128,15 +157,47 @@ class KMeans:
 
     # Calculate new value for centroids
     def _get_centroids(self, clusters):
+        '''
+        Description:
+            Get centroids for all clusters - calculating the avarage point in each cluster
+
+        Parameters:
+            clusters - list of lists of indexes (indexes represents the vectors in data)
+            
+        Return value:
+            centroids - list of points
+            
+        Example:
+            clusters: [[9,2,3], [0,5], [4,6,7,8]]
+            centroids: [[2,2,4], [5,6,5] , [4,1,1]]              
+        '''
         # assign mean value of clusters to centroids
-        centroids = np.zeros((self.K, self.n_features)) # create 2D array of 0's, each row represents centroid, each column represents feature.
-        for cluster_idx, cluster in enumerate(clusters):
-            cluster_mean = np.mean(self.data[cluster], axis=0) # calculate the mean of vectors in cluster element-wise (mean of feature1, feature2....mean of feature 100)
-            centroids[cluster_idx] = cluster_mean
+        shape_tuple = (self.K, self.n_features) # tuple contains the shape info: 2D array - (K, n)
+        centroids = np.zeros(shape_tuple) # create 2D array of 0's, each row represents centroid, each column represents feature.
+        for cluster_idx, cluster in enumerate(clusters): # enumerate works for iterables - allows the pair of index and value.
+            vectors_in_cluster = self.data[cluster] # Pick the vectors (with all their features) which indexes are in the current cluster
+            vector_of_means = np.mean(vectors_in_cluster, axis=0) # create means_vector (mean of feature1, feature2....mean of feature 100)
+            centroids[cluster_idx] = vector_of_means #  Update the new centroid to be the vector of means calculated
         return centroids
     
     # Check if centroids didnt move
     def _is_converged(self, centroids_old, centroids):
+        '''
+        Description:
+            Check if centroids did not moved.
+
+        Parameters:
+            centroids_old - list of points representing the old centroids
+            centroids     - list of points representing the new centroids
+            
+        Return value:
+            boolean - true if no changes where executed, otherwise false.
+            
+        Example:
+            centroids_old: [[1,2], [4,5], [7,9]]
+            centroids:     [[1,2], [4,5], [9,8]] 
+            returns flase            
+        '''
         # distances between old and new centroids, for all centroids
         distances = [euclidean_distance(centroids_old[i], centroids[i]) for i in range(self.K)] # find distnace between old and new centroids
         return sum(distances) == 0 # if all centroids didnt move - convergence
@@ -155,8 +216,6 @@ class KMeans:
 
 
     
-    
-# Returns a list of k centroids (vectors of length n)
 def calculate_initial_centroids(data, k):
     '''
     Parameters:
@@ -166,27 +225,35 @@ def calculate_initial_centroids(data, k):
         centroids - list of points which will be promoted to centroids.
     '''
     centroids = []  # Initialize the centroids list
-    centroids.append(data[np.random.randint(data.shape[0]), :])  # First centroid randomly chosen from data
-
-    for c_id in range(k - 1):  # Compute remaining k - 1 centroids
+    random_index_of_vector = np.random.randint(data.shape[0]) # Choose index of a point from data randomly
+    random_centroid_from_data = data[random_index_of_vector, :] # Pick the vector (with all features) based on the random index
+    centroids.append(random_centroid_from_data)  # Add the random centroid
+    
+    
+    ''' Compute locations for remaining centroids '''
+    for c_id in range(k - 1):  # Compute remaining k - 1 centroids (1 already chocen randomly)
         dist = []  # Initialize a list to store distances of data points from nearest centroid
-        for i in range(data.shape[0]):  # For each vector/point in the dataset
+        
+        ''' Save distance for nearest centroid for each vector '''
+        for i in range(data.shape[0]):  # For each vector/point in the dataset we will save the distacne to the nearest centroid and keep it in dist[].
             point = data[i, :]  # Point representing vector i by all columns of row i in the dataset
             d = sys.maxsize  # Depending on the system, largest size of array/string
 
             # Compute distance of current point from each of the previously selected centroid and store the minimum distance
             for j in range(len(centroids)):
-                temp_dist = euclidean_distance(point, centroids[j])
-                d = min(d, temp_dist)
+                temp_dist = euclidean_distance(point, centroids[j]) # Find distance between point and current centroid
+                d = min(d, temp_dist) # update minimum if new centroid is closer
             dist.append(d)
-
+        
+        ''' Find point with maximal distance from its centroid '''
         # Select data point with maximum distance as our next centroid
         dist = np.array(dist)  # Create new vector based on list of minimum distances of all points
-        row_index_of_the_point_with_highest_distance = np.argmax(dist)
+        row_index_of_the_point_with_highest_distance = np.argmax(dist) # Get index of point with maximal distance
         next_centroid = data[row_index_of_the_point_with_highest_distance, :]  # Point with maximum distance
         centroids.append(next_centroid)
 
     return centroids
+
 # Testing
 if __name__ == "__main__":
     
