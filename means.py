@@ -1,6 +1,6 @@
 import numpy as np
-import sys   # used for sys.maxsize :Depending on the system, largest size of array/string
 import time  # Used to see how much time the run takes.
+import random # used to randomize float between 0  and 1
 
 # In kmeans we can omit the sqrt, since it is monotonic - order of distances kept 
 def euclidean_distance(x1, x2):
@@ -56,13 +56,13 @@ def compute_silhouette(labels, distances):
 
 
 class KMeans:
-
-    def __init__(self, K,data ,max_iters):
+    
+    
+    def __init__(self, K,data):
         self.data = data # 2D array (m,n)
         self.K = K # number of clusters
-        self.max_iters = max_iters # max iterrations for moving the centroids
         self.labled_points = np.zeros(data.shape[0]) # 1D array of size m, each index corresponds to point with same index in data.
-        self.centroids = [] # list of points(1D Arrays of size n) which are the centers of each cluster.
+        self.centroids = [] # will be a list of points(1D Arrays of size n) which are the centers of each cluster.
         
         
     def predict(self):
@@ -81,53 +81,44 @@ class KMeans:
             Return labels:  [0,0,1] (v1,v2 assigend to cluster 0 and v3 assigned to cluster 1)
         '''
         
-        # Init centroids with Kmeans++ algorithm  
-        #   self.centroids = list of points (1D arrays of size n) which will be promoted to centroids.
-        self.centroids = calculate_initial_centroids(self.data, self.K)
+        '''Init centroids with Kmeans++ algorithm'''  
+        self.calculate_initial_centroids() # self.centroids list is now updated with initial points
    
-        # Update centroids based on kmeans algorithm
-        for _ in range(self.max_iters):
+        '''Label The Points With Centroid Indexes'''
+        while (True):
             
             """Assign Cluster To Points"""
-            # Cluster the labels based on given centorids
-            #   self.labled_points - # 1D array of size m, each index corresponds to point with same index in data.
-            self.labled_points = self._create_clusters(self.centroids)
-            
+            # Cluster the labels based on self.centroids
+            self.labled_points = self._create_clusters() # self.labled_points is now updated with cluster indexes
             
             """Calculate New Centroid Points"""
-            # Calculate new centroids from the clusters
             centroids_old = self.centroids # Save old centroid locations for comparison
             
             # calculate the new value for centroids
-            #   self.centroids - list of points(1D Arrays of size n) which are the centers of each cluster.
-            self.centroids = self._get_centroids(self.labled_points) 
+            self.centroids = self._get_centroids() # shape - (k, n) - 2D array of k centroid points
             
             """Test If Done"""
-            # Check if centroids moved
-            #   by by comapring distnaces between old and new centroid points
-            if self._is_converged(centroids_old, self.centroids): 
+            # Check if centroids moved by comapring distnaces between old and new centroid points
+            if self._is_converged(centroids_old): 
                 break
 
         return self.labled_points
  
 
      
-    def _create_clusters(self, centroids):
+    def _create_clusters(self):
         '''
         Description:
             Assign each point its cluster by calcualting all the distances between all points and all clusters.
             The distacne calculations are preformed elementwise and the results (distacnes) are kept in (m,k,n) array during the process.
             The minimal distance along the centroids axis is choosen for each point, and stored in labled_points.
-        
-        Parameters:
-            centroids - list of points(1D Arrays of size n) which are the centers of each cluster.
-            
+              
         Return value:
             labled_points - 1D array of size m, each index corresponds to point with same index in data.
         '''
         
         # Convert list to to NumPy array
-        centroids_np_arr = np.array(centroids) 
+        centroids_np_arr = np.array(self.centroids) 
         
         """Make The Points And Centroids Arrays Compatible"""
         # Important: since centroids are (k,n) and points are (m,n) we need to make theses array compatible for vectorization.
@@ -142,39 +133,107 @@ class KMeans:
         # shape of distance after sum is now (m, k) each cell represants distance of point i(of m) and centroid j (of k)
         distances = np.sum(points_minus_centroids_squared, axis=2)  # axis 2 is features, we want to sum the features to get all dsitances between points and centroids
         
-        """Label The Points"""
+        """Label"""
         # For each point keep the index of cluster with minimal distance
         labled_points = np.argmin(distances, axis=1)  # argmin returns array of m indexes , each index is of the nearest centroid to that point. axis 1 means along the columns (the centroids)
         
 
         return labled_points
+    
+        
+    def weighted_random_choice(self, minimal_squared_distances):
+        '''
+        Choose one new data point at random as a new center,
+        using a weighted probability distribution where a point x is chosen with probability proportional to D(x)2.
+        '''
+        # Get sum of all distqances to be in denominator of probabilities
+        squared_distance_sum = np.sum(minimal_squared_distances, axis = 0) # shape - () - Scalar
+        
+        # Get probability based on distance only
+        probabilities = minimal_squared_distances / squared_distance_sum # shape - (m, ) - 1D array
+        
+        # Update probability to be comulative (sum until the point)
+        cumulative_probabilities = np.cumsum(probabilities) # shape - (m, ) - 1D array
+        
+        # Get random float between 0 and 1
+        random_float = random.random()
+        
+        # Choose point from points - points with high ditacne has proportional chance of picling
+        for i, cp in enumerate(cumulative_probabilities):
+            if random_float <= cp:
+                return i
+            
+     
+    def calculate_initial_centroids(self):
+        '''
+        Description:
+           Kmeans++ algorithm for good initialization of centroids:
+           Choose one center uniformly at random among the data points.
+           For each data point x not chosen yet, compute D(x), the distance between x and the nearest center that has already been chosen.
+           Choose one new data point at random as a new center, using a weighted probability distribution where a point x is chosen with probability proportional to D(x)2.
+           Repeat Steps 2 and 3 until k centers have been chosen.    
+        '''
+
+        '''Choose one center uniformly at random among the data points.'''
+        random_index_of_vector = np.random.randint(self.data.shape[0]) # Choose index of a point from data randomly
+        random_centroid_from_data = self.data[random_index_of_vector, :] # Pick the vector (with all features) based on the random index
+        self.centroids.append(random_centroid_from_data)  # Add the random centroid
+        
+        ''' Compute locations for remaining centroids '''
+        for _ in range(self.K - 1):  # Compute remaining k - 1 centroids
+        
+            '''Make Data Compatible For Vectorization'''
+            centroids_np_arr = np.array(self.centroids)  # Convert list to numpy array
+            data_compatible = data[:, np.newaxis, :]  # Shape: (m, 1, n) - 3D array
+            centroids_compatible = centroids_np_arr[np.newaxis, :, :]  # Shape: (1, k, n) - 3D array
+            
+            '''Compute Squared Distances For All Points'''
+            distances_pre_compute = (data_compatible - centroids_compatible) ** 2
+            squared_distances = np.sum(distances_pre_compute, axis=2)  # Shape: (m, k) - 2D array
+            # Compute the minimum distance to any centroid
+            minimal_squared_distances = np.min(squared_distances, axis=1)  # Shape: (m,) - 1D array
+
+            '''Choose Next Centroid Using Weighted Probability'''
+            index_of_next_centroid = self.weighted_random_choice(minimal_squared_distances)
+            
+            '''Add The Centroid'''
+            self.centroids.append(self.data[index_of_next_centroid])  # Append new centroid
 
 
-
-    def _get_centroids(self, labled_points):
-        # Number of clusters
-        K = self.K
+    def _get_centroids(self):
+    
+        '''
+        Description:
+            Calculates avarages of each cluster and return the point located in the avarage
+        
+        Return:
+            new_centroids - 2D array of shape (k, n) of points which are centroids
+            
+        Example:
+            labaled_points: [0,0,0,1,1,2,2]
+            k = 3
+            n = 2
+            retuns new_centroids: [[1,2], [0,2], [3,4]]
+        '''  
         
         # Initialize a new centroids array (K, n)
-        new_centroids = np.zeros((K, self.data.shape[1]))  # Shape (K, n)
+        new_centroids = np.zeros((self.K, self.data.shape[1]))  # Shape (K, n)
     
         # For each cluster (from 0 to K-1)
-        for k in range(K):
-            # Find all points assigned to the current cluster
+        for k in range(self.K):
+            '''Get only points assigned to the current cluster index''' 
             # This is slicing of data by providing the indexing we want to keep:
             #   - only the indexes of points which in labled_points has value k
-            cluster_points = self.data[labled_points == k]  # cluster_points is (num_of_points_in_cluster_k, n )
+            cluster_points = self.data[self.labled_points == k]  # shape - (num_of_points_in_cluster_k, n)
             
             # Calculate the mean of the points in this cluster
             # np.mean returns single point (array of size n) after summing all features of all points in cluster K and deviding by the count
-            new_centroids[k] = np.mean(cluster_points, axis=0)  # Mean across the features (axis 0)
+            new_centroids[k] = np.mean(cluster_points, axis=0)  # shape of element in list - (n,)
     
-        return new_centroids
+        return new_centroids # shape - (k, n)
     
     
-
-    # Check if centroids didnt move
-    def _is_converged(self, centroids_old, centroids):
+    def _is_converged(self, centroids_old):
         '''
         Description:
             Check if centroids did not moved.
@@ -192,52 +251,16 @@ class KMeans:
             returns flase            
         '''
         # distances between old and new centroids, for all centroids
-        distances = [euclidean_distance(centroids_old[i], centroids[i]) for i in range(self.K)] # find distnace between old and new centroids
+        distances = [euclidean_distance(centroids_old[i], self.centroids[i]) for i in range(self.K)] # find distnace between old and new centroids
         return sum(distances) == 0 # if all centroids didnt move - convergence
 
   
-def calculate_initial_centroids(data, k):
-    '''
-    Parameters:
-        data - # 2D array (m,n)
-        k - # number of clusters
-    Return value:
-        centroids - list of points (1D arrays of size n) which will be promoted to centroids.
-    '''
-    centroids = []  # Initialize the centroids list
-    random_index_of_vector = np.random.randint(data.shape[0]) # Choose index of a point from data randomly
-    random_centroid_from_data = data[random_index_of_vector, :] # Pick the vector (with all features) based on the random index
-    centroids.append(random_centroid_from_data)  # Add the random centroid
-    
-    
-    ''' Compute locations for remaining centroids '''
-    for c_id in range(k - 1):  # Compute remaining k - 1 centroids (1 already chocen randomly)
-        dist = []  # Initialize a list to store distances of data points from nearest centroid
-        
-        ''' Save distance for nearest centroid for each vector '''
-        for i in range(data.shape[0]):  # For each vector/point in the dataset we will save the distacne to the nearest centroid and keep it in dist[].
-            point = data[i, :]  # Point representing vector i by all columns of row i in the dataset
-            d = sys.maxsize  # Depending on the system, largest size of array/string
 
-            # Compute distance of current point from each of the previously selected centroid and store the minimum distance
-            for j in range(len(centroids)):
-                temp_dist = euclidean_distance(point, centroids[j]) # Find distance between point and current centroid
-                d = min(d, temp_dist) # update minimum if new centroid is closer
-            dist.append(d)
-        
-        ''' Find point with maximal distance from its centroid '''
-        # Select data point with maximum distance as our next centroid
-        dist = np.array(dist)  # Create new vector based on list of minimum distances of all points
-        row_index_of_the_point_with_highest_distance = np.argmax(dist) # Get index of point with maximal distance
-        next_centroid = data[row_index_of_the_point_with_highest_distance, :]  # Point with maximum distance
-        centroids.append(next_centroid)
-
-    return centroids
 
 # Testing
 if __name__ == "__main__":
     
-    
+
     # Measure the time taken for the entire process
     start_time = time.time()
     
@@ -250,13 +273,17 @@ if __name__ == "__main__":
     
     distances = pairwise_distances(data)
     
+    
+    
     # try 10 values for k
     for k in range (2,11):
-        kmeans = KMeans(K=k,data = data, max_iters=150)
+        kmeans = KMeans(K=k,data = data)
         labels = kmeans.predict()
         #print("labels", type(labels))
         silhouette_avg = compute_silhouette(labels, distances)
         print(f"Silhouette for round {k} is {silhouette_avg}")
         elapsed_time = time.time() - start_time
         print(f"Time taken: {elapsed_time:.6f} seconds")
+    
+
     
