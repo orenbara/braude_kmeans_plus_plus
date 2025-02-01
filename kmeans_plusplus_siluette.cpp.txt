@@ -31,7 +31,7 @@ void init_clusters_with_kpp(POINT* pts, int num_pts, POINT* centroids, int num_c
 double get_distance_to_nearest_centroid(POINT* pt, POINT* centroid_arr, int n_cluster);
 POINT* kmeans_plus_plus(POINT* pts, int num_pts, int num_clusters, int maxTimes);
 double calculate_silhouette_for_point(POINT* pts, int num_pts, int point_index, int k, double** distance_matrix);
-double calculate_silhouette_score(POINT* pts, int num_pts, int k, double** distance_matrix);
+double calculate_silhouette_score(POINT* pts, int num_pts, int k,  double** distance_matrix);
 void print_points_and_centroids(POINT* pts, int num_pts, POINT* centroids, int num_clusters);
 
 
@@ -91,7 +91,7 @@ POINT* read_points_from_csv(const char* filename, int* num_pts) {
 /*----------------------------------------------------------------------
 * Calculating euclidain distance between two vectors of dimention 100.
   Input:
-		POINT* a, POINT* b: Points to mesure squared euclidian
+		POINT* a, POINT* b: Points to mesure squared euclidian 
   Output:
 		double distance: squared distance between the two vectors
 ----------------------------------------------------------------------*/
@@ -114,7 +114,7 @@ double euc_dist_squared(POINT* a, POINT* b)
 		double** distance_matrix: a matrix where each sell [i,j] holds the Euclidean distance between i and j
 ----------------------------------------------------------------------*/
 double** pairwise_distances(POINT* points, int num_pts) {
-
+	 
 	// Allocate memory for the distance matrix
 	double** dist_matrix = (double**)malloc(num_pts * sizeof(double*)); //1D
 	if (!dist_matrix) {
@@ -123,7 +123,7 @@ double** pairwise_distances(POINT* points, int num_pts) {
 	}
 	for (int i = 0; i < num_pts; i++) {
 		dist_matrix[i] = (double*)calloc(num_pts, sizeof(double)); //2D
-
+		
 		// Case if memory allocation failed
 		if (!dist_matrix[i]) {
 			printf("Allocation memory failed\n");
@@ -243,7 +243,7 @@ double get_distance_to_nearest_centroid(POINT* pt, POINT* centroid_arr, int n_cl
 			int num_clusters: length of centroids array
 		Output:
 			No direct output
-			Update the parameters:
+			Update the parameters: 
 				POINT* pts: array of all the points in the data.
 				POINT* centroids: array of points storing the centroids.
 -------------------------------------------------------*/
@@ -304,7 +304,7 @@ void init_clusters_with_kpp(POINT* pts, int num_pts, POINT* centroids, int num_c
 			devide points in cluster element wise (phase 2 of avarage calcualtion)
 			update centroids to be the avarage location
 			check if points change clusters
-
+	
 	INPUT:
 		POINT* pts: point array to cluster by updating the group atribute
 		int num_pts: length of points
@@ -476,7 +476,7 @@ double calculate_silhouette_score(POINT* pts, int num_pts, int k, double** dista
 	for (int i = 0; i < num_pts; i++) {
 		// Calculate silhouette score for point i
 		sum_calculation = calculate_silhouette_for_point(pts, num_pts, i, k, distance_matrix);
-
+		
 		// Check if the result is NaN - error in silhouette calclulation for point i
 		if (isnan(sum_calculation)) {
 			return NAN;
@@ -549,7 +549,7 @@ int main()
 
 	start = clock();
 
-	POINT* pts = read_points_from_csv("C:/Users/Oren Baranovsky/source/repos/kmeans_plusplus_siluette/kmeans_plusplus_siluette/kmeans_data.csv", &num_pts);
+	POINT* pts = read_points_from_csv("C:\\Users\\Kate\\Desktop\\prog_leng\\kmeans_plusplus_siluette\\kmeans_plusplus_siluette\\kmeans_data.csv", &num_pts);
 	if (!pts) {
 		printf("Failed to read points\n");
 		return 1;
