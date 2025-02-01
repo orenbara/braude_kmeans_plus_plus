@@ -21,24 +21,33 @@ def pairwise_distances(data):
 
 
 def compute_silhouette(labels, distances):
-    """
-    Optimized computation of the Silhouette Coefficient.
-    """
+    '''
+    Compute the Silhouette Coefficient.
+        labels - array where each entry is the cluster label of the corresponding data point
+        distances - precomputed pairwise distance matrix of shape (N_samples, N_samples)
+    Return value:
+        Silhouette Coefficient
+    '''
     # Unique cluster labels
-    unique_labels = np.unique(labels)
+    unique_labels = np.unique(labels) # Returns the unique elements of an array
     
     # Preallocate arrays for cohesion (a) and separation (b)
-    N_samples = distances.shape[0]
+    N_samples = distances.shape[0] # Returns the number of samples in the dataset
     a = np.zeros(N_samples)
     b = np.full(N_samples, np.inf)  # Initialize with large values for separation
     
-    # Dictionary to store mask indices for each cluster
-    cluster_indices = {label: np.where(labels == label)[0] for label in unique_labels}
+    # Dictionary to store indices for each cluster
+    cluster_indices = {}
+    for label in unique_labels:
+        cluster_indices[label] = np.where(labels == label)[0] # Returns the indices where the condition is True 
+    # example: cluster_indices = { 0: [1,3,4],  1: [0,2]}
     
     # Precompute cohesion (a) and separation (b)
     for label, indices in cluster_indices.items():
+        # example:label - 0, indices - [1,3,4]
+        
         # Cohesion (a)
-        cluster_distances = distances[np.ix_(indices, indices)]
+        cluster_distances = distances[np.ix_(indices, indices)] # Extracts a submatrix from distances, selecting rows and columns corresponding to indices
         np.fill_diagonal(cluster_distances, np.nan)  # Exclude self-distances
         a[indices] = np.nanmean(cluster_distances, axis=1)
         
@@ -47,7 +56,9 @@ def compute_silhouette(labels, distances):
             if label == other_label:
                 continue
             # Compute mean distance to other clusters
-            inter_distances = np.mean(distances[np.ix_(indices, other_indices)], axis=1)
+            
+            # Extracts a submatrix from distances, selecting rows corresponding to indices and columns to other indices
+            inter_distances = np.mean(distances[np.ix_(indices, other_indices)], axis=1) 
             b[indices] = np.minimum(b[indices], inter_distances)  # Minimum across other clusters
     
     # Compute silhouette scores
